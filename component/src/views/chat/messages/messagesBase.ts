@@ -237,6 +237,11 @@ export class MessagesBase {
       .replace(/\\\((.*?)\\\)/g, '$$$1$$')  // Convert \(...\) to $...$
       .replace(/\\\\/g, '\\');  // Remove double backslashes
 
+    // Wrap equations in backticks to prevent further processing
+    processedText = processedText.replace(/\$\$(.*?)\$\$/g, (match, equation) => {
+      return '`' + equation + '`';
+    });
+
     bubbleElement.innerHTML = '';
 
     const zeroMd = document.createElement('zero-md');
@@ -312,11 +317,6 @@ export class MessagesBase {
 
     // Force zero-md to re-render when math content is present
     setTimeout(() => {
-      zeroMd.render();
-      const mathElements = zeroMd.shadowRoot.querySelectorAll('.math-inline, .math-block');
-      mathElements.forEach((el) => {
-        el.textContent = el.textContent.replace(/\\\\/g, '\\');
-      });
       zeroMd.render();
     }, 100);
   }
