@@ -221,6 +221,7 @@ export class MessagesBase {
   }
 
   public renderText(bubbleElement: HTMLElement, text: string) {
+    console.log('renderText:', text);
     // Ensure required scripts are loaded
     if (!document.querySelector('script[src*="zero-md"]')) {
       const zeroMdScript = document.createElement('script');
@@ -234,7 +235,8 @@ export class MessagesBase {
       .replace(/\\begin{equation}/g, '$$')
       .replace(/\\end{equation}/g, '$$')
       .replace(/\\\[(.*?)\\\]/g, '$$$$1$$')  // Convert \[...\] to $$...$$
-      .replace(/\\\((.*?)\\\)/g, '$$$1$$');  // Convert \(...\) to $...$
+      .replace(/\\\((.*?)\\\)/g, '$$$1$$')  // Convert \(...\) to $...$
+      .replace(/\\\\/g, '\\');  // Remove double backslashes
 
     bubbleElement.innerHTML = '';
 
@@ -253,50 +255,50 @@ export class MessagesBase {
 
     const style = document.createElement('style');
     style.textContent = `
-        .markdown-body {
-            padding: 0;
-            margin: 0;
-            color: inherit;
-            font-size: inherit;
-            line-height: inherit;
-            background: transparent;
-        }
-        .markdown-body .math {
-            overflow-x: auto;
-            margin: 1em 0;
-        }
-        .markdown-body .math-inline {
-            display: inline-block;
-            margin: 0;
-        }
-        .markdown-body .math-block {
-            display: block;
-            margin: 1em 0;
-        }
-        .markdown-body ol {
-            padding-left: 1.5em;
-            margin: 0.5em 0;
-        }
-        .markdown-body li {
-            margin: 0.3em 0;
-        }
-        .markdown-body ul {
-            list-style-type: disc;
-            padding-left: 1.5em;
-            margin: 0.5em 0;
-        }
-        .katex {
-            font-size: 1.1em;
-        }
-        .katex-display {
-            overflow-x: auto;
-            overflow-y: hidden;
-            padding: 0.5em 0;
-            margin: 0.5em 0;
-        }
-        .katex-html {
-            white-space: normal;
-        }
+      .markdown-body {
+        padding: 0;
+        margin: 0;
+        color: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        background: transparent;
+      }
+      .markdown-body .math {
+        overflow-x: auto;
+        margin: 1em 0;
+      }
+      .markdown-body .math-inline {
+        display: inline-block;
+        margin: 0;
+      }
+      .markdown-body .math-block {
+        display: block;
+        margin: 1em 0;
+      }
+      .markdown-body ol {
+        padding-left: 1.5em;
+        margin: 0.5em 0;
+      }
+      .markdown-body li {
+        margin: 0.3em 0;
+      }
+      .markdown-body ul {
+        list-style-type: disc;
+        padding-left: 1.5em;
+        margin: 0.5em 0;
+      }
+      .katex {
+        font-size: 1.1em;
+      }
+      .katex-display {
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.5em 0;
+        margin: 0.5em 0;
+      }
+      .katex-html {
+        white-space: normal;
+      }
     `;
     zeroMd.appendChild(style);
 
@@ -311,7 +313,8 @@ export class MessagesBase {
 
     // Force zero-md to re-render when math content is present
     setTimeout(() => {
-      zeroMd.render();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (zeroMd as any).render();
     }, 100);
   }
 
