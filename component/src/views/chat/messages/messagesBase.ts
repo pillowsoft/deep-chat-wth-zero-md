@@ -317,7 +317,8 @@ export class MessagesBase {
 
     // Force zero-md to re-render when math content is present
     setTimeout(() => {
-      zeroMd.render();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (zeroMd as any).render();
     }, 100);
   }
 
