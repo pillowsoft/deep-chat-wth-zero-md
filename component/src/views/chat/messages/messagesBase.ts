@@ -221,7 +221,6 @@ export class MessagesBase {
   }
 
   public renderText(bubbleElement: HTMLElement, text: string) {
-    console.log('renderText:', text);
     // Ensure required scripts are loaded
     if (!document.querySelector('script[src*="zero-md"]')) {
       const zeroMdScript = document.createElement('script');
@@ -313,8 +312,12 @@ export class MessagesBase {
 
     // Force zero-md to re-render when math content is present
     setTimeout(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (zeroMd as any).render();
+      zeroMd.render();
+      const mathElements = zeroMd.shadowRoot.querySelectorAll('.math-inline, .math-block');
+      mathElements.forEach((el) => {
+        el.textContent = el.textContent.replace(/\\\\/g, '\\');
+      });
+      zeroMd.render();
     }, 100);
   }
 
