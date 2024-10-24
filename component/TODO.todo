@@ -1,4 +1,5 @@
 Next:
-  ☐ if I add message with correxlyt formatted markdown equations then it works fine, so smoehting is weird when they come back form the ai
-  ☐ makje the themeing match the themes in deep-chat
-  ☐ yay, mermaid diagrams look great, but may need a bit of theme support, or at least be place on a white background as they don't do dark/light
+  ☐ if I add message with correct formatted markdown equations then it works fine, so smoehting is weird when they come back from the ai
+  ☐ make the themeing match the themes in deep-chat
+  ☐ yay, mermaid diagrams look great, but may need a bit of theme support, they need dto be places  on white background as they don't do dark/light??
+  ☐ add adorner slots surrounding messages (allows for thing like copy buttons, etc.)
