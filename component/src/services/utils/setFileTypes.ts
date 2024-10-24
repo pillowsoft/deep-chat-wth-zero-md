@@ -5,6 +5,55 @@ import { Legacy } from '../../utils/legacy/legacy';
 import { Connect } from '../../types/connect';
 import { DeepChat } from '../../deepChat';
 
+
+// Synchronous version of renderMDToText
+function renderMDToTextSync(text: string): string {
+  // Create a temporary div element
+  const tempDiv = document.createElement('div');
+
+  // Ensure required scripts are loaded
+  if (!document.querySelector('script[src*="zero-md"]')) {
+    const zeroMdScript = document.createElement('script');
+    zeroMdScript.type = 'module';
+    zeroMdScript.src = 'https://cdn.jsdelivr.net/npm/zero-md@3/dist/zero-md.min.js';
+    document.head.appendChild(zeroMdScript);
+  }
+
+  let processedText = text
+    // Convert LaTeX style equations to markdown style
+    .replace(/\\begin{equation}/g, '$$')
+    .replace(/\\end{equation}/g, '$$')
+    .replace(/\\\[(.*?)\\\]/g, '$$$$1$$')  // Convert \[...\] to $$...$$
+    .replace(/\\\((.*?)\\\)/g, '$$$1$$')  // Convert \(...\) to $...$
+    .replace(/\\\\/g, '\\');  // Remove double backslashes
+
+  // Wrap equations in backticks to prevent further processing
+  processedText = processedText.replace(/\$\$(.*?)\$\$/g, (_match, equation) => {
+    return `\`${equation}\``;
+  });
+
+  const zeroMd = document.createElement('zero-md');
+
+  // Set no-shadow attribute to allow styling
+  zeroMd.setAttribute('no-shadow', '');
+
+  // Enable math rendering
+  zeroMd.setAttribute('math', '');
+
+  const markdownSource = document.createElement('script');
+  markdownSource.setAttribute('type', 'text/markdown');
+  markdownSource.textContent = processedText;
+  zeroMd.appendChild(markdownSource);
+
+  tempDiv.appendChild(zeroMd);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (zeroMd as any).render();
+  const renderedHTML = tempDiv.innerHTML;
+  tempDiv.remove();
+
+  return renderedHTML;
+}
+
 export class SetFileTypes {
   // prettier-ignore
   private static parseConfig(connectSettings: Connect, defFiles: FileAttachments,
@@ -17,8 +66,8 @@ export class SetFileTypes {
         if (files.infoModal) {
           fileConfig.files.infoModal = files.infoModal;
           if (files.infoModal?.textMarkDown) {
-            // FIXME: how do we use zero-md here?
-            fileConfig.infoModalTextMarkUp = remark.render(files.infoModal.textMarkDown);
+            // TEST: ensure this works
+            fileConfig.infoModalTextMarkUp = renderMDToTextSync(files.infoModal.textMarkDown);
           }
         }
         if (files.acceptedFormats) fileConfig.files.acceptedFormats = files.acceptedFormats;
