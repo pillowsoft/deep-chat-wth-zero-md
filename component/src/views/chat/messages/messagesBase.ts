@@ -1,22 +1,20 @@
-import {MessageElementsStyles, MessageRoleStyles, MessageStyles, UserContent} from '../../../types/messages';
-import {MessageContentI, Overwrite} from '../../../types/messagesInternal';
-import {ProcessedTextToSpeechConfig} from './textToSpeech/textToSpeech';
-import {ElementUtils} from '../../../utils/element/elementUtils';
-import {HTMLDeepChatElements} from './html/htmlDeepChatElements';
-import {LoadingStyle} from '../../../utils/loading/loadingStyle';
-import {RemarkableConfig} from './remarkable/remarkableConfig';
-import {FireEvents} from '../../../utils/events/fireEvents';
-import {LoadingHistory} from './history/loadingHistory';
-import {HTMLClassUtilities} from '../../../types/html';
-import {MessageStyleUtils} from './messageStyleUtils';
-import {IntroPanel} from '../introPanel/introPanel';
-import {Response} from '../../../types/response';
-import {Avatars} from '../../../types/avatars';
-import {MessageUtils} from './messageUtils';
-import {DeepChat} from '../../../deepChat';
-import {Names} from '../../../types/names';
-import {MessageElements} from './messages';
-import {Remarkable} from 'remarkable';
+import { MessageElementsStyles, MessageRoleStyles, MessageStyles, UserContent } from '../../../types/messages';
+import { MessageContentI, Overwrite } from '../../../types/messagesInternal';
+import { ProcessedTextToSpeechConfig } from './textToSpeech/textToSpeech';
+import { ElementUtils } from '../../../utils/element/elementUtils';
+import { HTMLDeepChatElements } from './html/htmlDeepChatElements';
+import { LoadingStyle } from '../../../utils/loading/loadingStyle';
+import { FireEvents } from '../../../utils/events/fireEvents';
+import { LoadingHistory } from './history/loadingHistory';
+import { HTMLClassUtilities } from '../../../types/html';
+import { MessageStyleUtils } from './messageStyleUtils';
+import { IntroPanel } from '../introPanel/introPanel';
+import { Response } from '../../../types/response';
+import { Avatars } from '../../../types/avatars';
+import { MessageUtils } from './messageUtils';
+import { DeepChat } from '../../../deepChat';
+import { Names } from '../../../types/names';
+import { MessageElements } from './messages';
 
 export class MessagesBase {
   messageElementRefs: MessageElements[] = [];
@@ -30,19 +28,30 @@ export class MessagesBase {
   protected _introPanel?: IntroPanel;
   protected readonly _avatars?: Avatars;
   protected readonly _names?: Names;
-  private _remarkable: Remarkable;
   private readonly _onMessage?: (message: MessageContentI, isHistory: boolean) => void;
 
   constructor(deepChat: DeepChat) {
     this.elementRef = MessagesBase.createContainerElement();
     this.messageStyles = deepChat.messageStyles;
-    this._remarkable = RemarkableConfig.createNew();
     this._avatars = deepChat.avatars;
     this._names = deepChat.names;
     this._onMessage = FireEvents.onMessage.bind(this, deepChat);
     if (deepChat.htmlClassUtilities) this.htmlClassUtilities = deepChat.htmlClassUtilities;
+
+    // Add zero-md script if not already present
+    if (!document.querySelector('script[src*="zero-md"]')) {
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = 'https://cdn.jsdelivr.net/npm/zero-md@3?register';
+      document.head.appendChild(script);
+
+      script.onload = () => {
+        this.refreshTextMessages(); // Refresh messages after zero-md is loaded
+      };
+    }
+
     setTimeout(() => {
-      this.submitUserMessage = deepChat.submitUserMessage; // wait for it to be available
+      this.submitUserMessage = deepChat.submitUserMessage;
     });
   }
 
@@ -124,7 +133,7 @@ export class MessagesBase {
       // if prev message before temp has a different role to the new one, make sure its avatar is revealed
       const prevMessageElements = this.messageElementRefs[this.messageElementRefs.length - 2];
       if (prevMessageElements && this.messages[this.messages.length - 1]
-          && !tempElements.bubbleElement.classList.contains(MessageUtils.getRoleClass(newRole))) {
+        && !tempElements.bubbleElement.classList.contains(MessageUtils.getRoleClass(newRole))) {
         MessageUtils.revealRoleElements(prevMessageElements.innerContainer, this._avatars, this._names);
       }
     }
@@ -136,7 +145,7 @@ export class MessagesBase {
 
   public createMessageElements(text: string, role: string, isTop = false) {
     const messageElements = MessagesBase.createBaseElements();
-    const {outerContainer, innerContainer, bubbleElement} = messageElements;
+    const { outerContainer, innerContainer, bubbleElement } = messageElements;
     outerContainer.appendChild(innerContainer);
     this.addInnerContainerElements(bubbleElement, text, role);
     MessageUtils.updateRefArr(this.messageElementRefs, messageElements, isTop);
@@ -152,7 +161,7 @@ export class MessagesBase {
     const bubbleElement = document.createElement('div');
     bubbleElement.classList.add('message-bubble');
     innerContainer.appendChild(bubbleElement);
-    return {outerContainer, innerContainer, bubbleElement};
+    return { outerContainer, innerContainer, bubbleElement };
   }
 
   // prettier-ignore
@@ -164,12 +173,12 @@ export class MessagesBase {
       role === MessageUtils.USER_ROLE ? 'user-message-text' : 'ai-message-text');
     this.renderText(bubbleElement, text);
     MessageUtils.addRoleElements(bubbleElement, role, this._avatars, this._names);
-    return {bubbleElement};
+    return { bubbleElement };
   }
 
   // prettier-ignore
   public applyCustomStyles(elements: MessageElements | undefined, role: string, media: boolean,
-      otherStyles?: MessageRoleStyles | MessageElementsStyles) {
+    otherStyles?: MessageRoleStyles | MessageElementsStyles) {
     if (elements && this.messageStyles) {
       MessageStyleUtils.applyCustomStyles(this.messageStyles, elements, role, media, otherStyles);
     }
@@ -177,8 +186,8 @@ export class MessagesBase {
 
   public static createMessageContent(content: Response): MessageContentI {
     // it is important to create a new object as its properties get manipulated later on e.g. delete message.html
-    const {text, files, html, _sessionId, role} = content;
-    const messageContent: MessageContentI = {role: role || MessageUtils.AI_ROLE};
+    const { text, files, html, _sessionId, role } = content;
+    const messageContent: MessageContentI = { role: role || MessageUtils.AI_ROLE };
     if (text) messageContent.text = text;
     if (files) messageContent.files = files;
     if (html) messageContent.html = html;
@@ -212,15 +221,101 @@ export class MessagesBase {
   }
 
   public renderText(bubbleElement: HTMLElement, text: string) {
-    bubbleElement.innerHTML = this._remarkable.render(text);
-    // there is a bug in remarkable where text with only numbers and full stop after them causes the creation
-    // of a list which has no innert text and is instead prepended as a prefix in the start attribute (12.)
-    if (bubbleElement.innerText.trim().length === 0) bubbleElement.innerText = text;
+    // Ensure required scripts are loaded
+    if (!document.querySelector('script[src*="zero-md"]')) {
+      const zeroMdScript = document.createElement('script');
+      zeroMdScript.type = 'module';
+      zeroMdScript.src = 'https://cdn.jsdelivr.net/npm/zero-md@3/dist/zero-md.min.js';
+      document.head.appendChild(zeroMdScript);
+    }
+
+    let processedText = text
+      // Convert LaTeX style equations to markdown style
+      .replace(/\\begin{equation}/g, '$$')
+      .replace(/\\end{equation}/g, '$$')
+      .replace(/\\\[(.*?)\\\]/g, '$$$$1$$')  // Convert \[...\] to $$...$$
+      .replace(/\\\((.*?)\\\)/g, '$$$1$$');  // Convert \(...\) to $...$
+
+    bubbleElement.innerHTML = '';
+
+    const zeroMd = document.createElement('zero-md');
+
+    // Set no-shadow attribute to allow styling
+    zeroMd.setAttribute('no-shadow', '');
+
+    // Enable math rendering
+    zeroMd.setAttribute('math', '');
+
+    const markdownSource = document.createElement('script');
+    markdownSource.setAttribute('type', 'text/markdown');
+    markdownSource.textContent = processedText;
+    zeroMd.appendChild(markdownSource);
+
+    const style = document.createElement('style');
+    style.textContent = `
+        .markdown-body {
+            padding: 0;
+            margin: 0;
+            color: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            background: transparent;
+        }
+        .markdown-body .math {
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+        .markdown-body .math-inline {
+            display: inline-block;
+            margin: 0;
+        }
+        .markdown-body .math-block {
+            display: block;
+            margin: 1em 0;
+        }
+        .markdown-body ol {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        .markdown-body li {
+            margin: 0.3em 0;
+        }
+        .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        .katex {
+            font-size: 1.1em;
+        }
+        .katex-display {
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 0.5em 0;
+            margin: 0.5em 0;
+        }
+        .katex-html {
+            white-space: normal;
+        }
+    `;
+    zeroMd.appendChild(style);
+
+    bubbleElement.appendChild(zeroMd);
+
+    // Optional: Add a fallback if zero-md fails to load
+    if (!customElements.get('zero-md')) {
+      const fallbackDiv = document.createElement('div');
+      fallbackDiv.textContent = text;
+      bubbleElement.appendChild(fallbackDiv);
+    }
+
+    // Force zero-md to re-render when math content is present
+    setTimeout(() => {
+      zeroMd.render();
+    }, 100);
   }
 
-  // this is mostly used for enabling highlight.js to highlight code if it downloads later
   protected refreshTextMessages() {
-    this._remarkable = RemarkableConfig.createNew();
     this.textElementsToText.forEach((elementToText) => {
       this.renderText(elementToText[0].bubbleElement, elementToText[1]);
     });
