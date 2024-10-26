@@ -42,6 +42,7 @@ export class TextInputEvents {
   }
 
   private static onInput(characterLimit: number | undefined, validate: ValidationHandler | undefined, event: Event) {
+    console.log('onInput: event:', event);
     const inputElement = event.target as HTMLElement;
     const textContent = inputElement.textContent || '';
     if (characterLimit !== undefined && textContent.length > characterLimit) {

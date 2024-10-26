@@ -1,14 +1,14 @@
-import {KEYBOARD_KEY} from '../../../../utils/buttons/keyboardKeys';
-import {FileAttachments} from '../fileAttachments/fileAttachments';
-import {StyleUtils} from '../../../../utils/element/styleUtils';
-import {Browser} from '../../../../utils/browser/browser';
-import {ServiceIO} from '../../../../services/serviceIO';
-import {TextInput} from '../../../../types/textInput';
-import {CustomStyle} from '../../../../types/styles';
-import {TextInputEvents} from './textInputEvents';
-import {DeepChat} from '../../../../deepChat';
-import {PasteUtils} from './pasteUtils';
-import {FocusUtils} from './focusUtils';
+import { KEYBOARD_KEY } from '../../../../utils/buttons/keyboardKeys';
+import { FileAttachments } from '../fileAttachments/fileAttachments';
+import { StyleUtils } from '../../../../utils/element/styleUtils';
+import { Browser } from '../../../../utils/browser/browser';
+import { ServiceIO } from '../../../../services/serviceIO';
+import { TextInput } from '../../../../types/textInput';
+import { CustomStyle } from '../../../../types/styles';
+import { TextInputEvents } from './textInputEvents';
+import { DeepChat } from '../../../../deepChat';
+import { PasteUtils } from './pasteUtils';
+import { FocusUtils } from './focusUtils';
 
 // TO-DO state for focused (like input)
 export class TextInputEl {
@@ -54,19 +54,21 @@ export class TextInputEl {
   // prettier-ignore
   private static preventAutomaticScrollUpOnNewLine(inputElement: HTMLDivElement) {
     let scrollY: number | undefined;
-    inputElement.addEventListener('keydown', () => {scrollY = window.scrollY;});
-    inputElement.addEventListener('input', () => { if (scrollY !== window.scrollY) window.scrollTo({top: scrollY});});
+    inputElement.addEventListener('keydown', () => { scrollY = window.scrollY; });
+    inputElement.addEventListener('input', () => { if (scrollY !== window.scrollY) window.scrollTo({ top: scrollY }); });
   }
 
   // this also similarly prevents scroll up
   public clear() {
+    console.log('clear: this:', this);
     const scrollY = window.scrollY;
     if (!this.inputElementRef.classList.contains('text-input-disabled')) {
       Object.assign(this.inputElementRef.style, this._config.placeholder?.style);
       this.inputElementRef.textContent = '';
+      // FocusUtils.focusEndOfInput(this.inputElementRef);
       FocusUtils.focusEndOfInput(this.inputElementRef);
     }
-    if (Browser.IS_CHROMIUM) window.scrollTo({top: scrollY});
+    if (Browser.IS_CHROMIUM) window.scrollTo({ top: scrollY });
   }
 
   private createInputElement() {
