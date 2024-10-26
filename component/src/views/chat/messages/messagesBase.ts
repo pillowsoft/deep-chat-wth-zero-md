@@ -29,6 +29,9 @@ export class MessagesBase {
   protected readonly _avatars?: Avatars;
   protected readonly _names?: Names;
   private readonly _onMessage?: (message: MessageContentI, isHistory: boolean) => void;
+  private zeroMdLoaded = false;
+  private renderQueue: Array<() => void> = [];
+  private messageUpdateDebounceTimers: Map<HTMLElement, number> = new Map();
 
   constructor(deepChat: DeepChat) {
     this.elementRef = MessagesBase.createContainerElement();
@@ -38,16 +41,49 @@ export class MessagesBase {
     this._onMessage = FireEvents.onMessage.bind(this, deepChat);
     if (deepChat.htmlClassUtilities) this.htmlClassUtilities = deepChat.htmlClassUtilities;
 
-    // Add zero-md script if not already present
-    if (!document.querySelector('script[src*="zero-md"]')) {
-      const script = document.createElement('script');
-      script.type = 'module';
-      script.src = 'https://cdn.jsdelivr.net/npm/zero-md@3?register';
-      document.head.appendChild(script);
+    // Ensure both scripts are loaded in the correct order
+    if (!document.querySelector('script[src*="marked"]')) {
+      const markedScript = document.createElement('script');
+      markedScript.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+      document.head.appendChild(markedScript);
 
-      script.onload = () => {
-        this.refreshTextMessages(); // Refresh messages after zero-md is loaded
+      markedScript.onload = () => {
+        if (!document.querySelector('script[src*="zero-md"]')) {
+          const zeroMdScript = document.createElement('script');
+          zeroMdScript.type = 'module';
+          zeroMdScript.src = 'https://cdn.jsdelivr.net/npm/zero-md@3?register';
+          document.head.appendChild(zeroMdScript);
+
+          zeroMdScript.onload = () => {
+            const checkInterval = setInterval(() => {
+              if (customElements.get('zero-md')) {
+                clearInterval(checkInterval);
+                this.zeroMdLoaded = true;
+                this.processRenderQueue();
+                this.refreshTextMessages();
+              }
+            }, 50);
+          };
+        }
       };
+    } else if (!document.querySelector('script[src*="zero-md"]')) {
+      const zeroMdScript = document.createElement('script');
+      zeroMdScript.type = 'module';
+      zeroMdScript.src = 'https://cdn.jsdelivr.net/npm/zero-md@3?register';
+      document.head.appendChild(zeroMdScript);
+
+      zeroMdScript.onload = () => {
+        const checkInterval = setInterval(() => {
+          if (customElements.get('zero-md')) {
+            clearInterval(checkInterval);
+            this.zeroMdLoaded = true;
+            this.processRenderQueue();
+            this.refreshTextMessages();
+          }
+        }, 50);
+      };
+    } else {
+      this.zeroMdLoaded = true;
     }
 
     setTimeout(() => {
@@ -91,7 +127,7 @@ export class MessagesBase {
   protected createAndAppendNewMessageElement(text: string, role: string) {
     const messageElements = this.createNewMessageElement(text, role);
     this.elementRef.appendChild(messageElements.outerContainer);
-    setTimeout(() => ElementUtils.scrollToBottom(this.elementRef)); // timeout neeed when bubble font is large
+    setTimeout(() => ElementUtils.scrollToBottom(this.elementRef));
     return messageElements;
   }
 
@@ -99,7 +135,6 @@ export class MessagesBase {
     const messageElements = this.createNewMessageElement(text, role, isTop);
     if (isTop && (this.elementRef.firstChild as HTMLElement)?.classList.contains('deep-chat-intro')) {
       (this.elementRef.firstChild as HTMLElement).insertAdjacentElement('afterend', messageElements.outerContainer);
-      // swapping to place intro refs into correct position
       const introRefs = this.messageElementRefs[0];
       this.messageElementRefs[0] = this.messageElementRefs[1];
       this.messageElementRefs[1] = introRefs;
@@ -118,19 +153,15 @@ export class MessagesBase {
     const lastMessageElements = this.messageElementRefs[this.messageElementRefs.length - 1];
     LoadingHistory.changeFullViewToSmall(this, lastMessageElements);
     if (MessagesBase.isTemporaryElement(lastMessageElements)) {
-      this.revealRoleElementsIfTempRemoved(lastMessageElements, role); // readding role elements to previous message
+      this.revealRoleElementsIfTempRemoved(lastMessageElements, role);
       lastMessageElements.outerContainer.remove();
       this.messageElementRefs.pop();
     }
     return this.createMessageElements(text, role, isTop);
   }
 
-  // this can be tested by having an ai message, then a temp ai message with html that submits new user message:
-  // https://github.com/OvidijusParsiunas/deep-chat/issues/258
-  // prettier-ignore
   private revealRoleElementsIfTempRemoved(tempElements: MessageElements, newRole: string) {
     if ((this._avatars || this._names) && HTMLDeepChatElements.isElementTemporary(tempElements)) {
-      // if prev message before temp has a different role to the new one, make sure its avatar is revealed
       const prevMessageElements = this.messageElementRefs[this.messageElementRefs.length - 2];
       if (prevMessageElements && this.messages[this.messages.length - 1]
         && !tempElements.bubbleElement.classList.contains(MessageUtils.getRoleClass(newRole))) {
@@ -164,7 +195,6 @@ export class MessagesBase {
     return { outerContainer, innerContainer, bubbleElement };
   }
 
-  // prettier-ignore
   private addInnerContainerElements(bubbleElement: HTMLElement, text: string, role: string) {
     if (this.messages[this.messages.length - 1]?.role === role && !this.isLastMessageError()) {
       MessageUtils.hideRoleElements(this.messageElementRefs, !!this._avatars, !!this._names);
@@ -176,7 +206,6 @@ export class MessagesBase {
     return { bubbleElement };
   }
 
-  // prettier-ignore
   public applyCustomStyles(elements: MessageElements | undefined, role: string, media: boolean,
     otherStyles?: MessageRoleStyles | MessageElementsStyles) {
     if (elements && this.messageStyles) {
@@ -185,7 +214,6 @@ export class MessagesBase {
   }
 
   public static createMessageContent(content: Response): MessageContentI {
-    // it is important to create a new object as its properties get manipulated later on e.g. delete message.html
     const { text, files, html, _sessionId, role } = content;
     const messageContent: MessageContentI = { role: role || MessageUtils.AI_ROLE };
     if (text) messageContent.text = text;
@@ -197,6 +225,11 @@ export class MessagesBase {
   }
 
   public removeMessage(messageElements: MessageElements) {
+    const timer = this.messageUpdateDebounceTimers.get(messageElements.bubbleElement);
+    if (timer) {
+      window.clearTimeout(timer);
+      this.messageUpdateDebounceTimers.delete(messageElements.bubbleElement);
+    }
     messageElements.outerContainer.remove();
     const messageElementsIndex = this.messageElementRefs.findIndex((elRefs) => elRefs === messageElements);
     this.messageElementRefs.splice(messageElementsIndex, 1);
@@ -204,8 +237,15 @@ export class MessagesBase {
 
   public removeLastMessage() {
     const lastMessage = this.messageElementRefs[this.messageElementRefs.length - 1];
-    lastMessage.outerContainer.remove();
-    this.messageElementRefs.pop();
+    if (lastMessage) {
+      const timer = this.messageUpdateDebounceTimers.get(lastMessage.bubbleElement);
+      if (timer) {
+        window.clearTimeout(timer);
+        this.messageUpdateDebounceTimers.delete(lastMessage.bubbleElement);
+      }
+      lastMessage.outerContainer.remove();
+      this.messageElementRefs.pop();
+    }
   }
 
   public isLastMessageError() {
@@ -220,109 +260,117 @@ export class MessagesBase {
     this._onMessage?.(message, isHistory);
   }
 
+  private processRenderQueue() {
+    while (this.renderQueue.length > 0) {
+      const render = this.renderQueue.shift();
+      render?.();
+    }
+  }
+
   public renderText(bubbleElement: HTMLElement, text: string) {
-    // Ensure required scripts are loaded
-    if (!document.querySelector('script[src*="zero-md"]')) {
-      const zeroMdScript = document.createElement('script');
-      zeroMdScript.type = 'module';
-      zeroMdScript.src = 'https://cdn.jsdelivr.net/npm/zero-md@3/dist/zero-md.min.js';
-      document.head.appendChild(zeroMdScript);
+    const existingTimer = this.messageUpdateDebounceTimers.get(bubbleElement);
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
     }
 
-    let processedText = text
-      // Convert LaTeX style equations to markdown style
-      .replace(/\\begin{equation}/g, '$$')
-      .replace(/\\end{equation}/g, '$$')
-      .replace(/\\\[(.*?)\\\]/g, '$$$$1$$')  // Convert \[...\] to $$...$$
-      .replace(/\\\((.*?)\\\)/g, '$$$1$$')  // Convert \(...\) to $...$
-      .replace(/\\\\/g, '\\');  // Remove double backslashes
+    const renderFunction = () => {
+      let processedText = text
+        .replace(/\\begin{equation}/g, '$$')
+        .replace(/\\end{equation}/g, '$$')
+        .replace(/\\\[(.*?)\\\]/g, '$$$$1$$')
+        .replace(/\\\((.*?)\\\)/g, '$$$1$$')
+        .replace(/\\\\/g, '\\');
 
-    // Wrap equations in backticks to prevent further processing
-    processedText = processedText.replace(/\$\$(.*?)\$\$/g, (_match, equation) => {
-      return `\`${equation}\``;
-    });
+      processedText = processedText.replace(/\$\$(.*?)\$\$/g, (_match, equation) => {
+        return `\`${equation}\``;
+      });
 
-    bubbleElement.innerHTML = '';
+      let zeroMd = bubbleElement.querySelector('zero-md');
+      const existingContent = zeroMd?.querySelector('script[type="text/markdown"]')?.textContent;
 
-    const zeroMd = document.createElement('zero-md');
+      // Skip if content hasn't changed
+      if (existingContent === processedText) {
+        return;
+      }
 
-    // Set no-shadow attribute to allow styling
-    zeroMd.setAttribute('no-shadow', '');
+      // Create zero-md element if it doesn't exist
+      if (!zeroMd) {
+        bubbleElement.innerHTML = '';
+        zeroMd = document.createElement('zero-md');
+        zeroMd.setAttribute('no-shadow', '');
 
-    // Enable math rendering
-    zeroMd.setAttribute('math', '');
+        const style = document.createElement('style');
+        style.textContent = `
+          .markdown-body {
+            padding: 0;
+            margin: 0;
+            color: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            background: transparent;
+          }
+          .markdown-body .math {
+            overflow-x: auto;
+            margin: 1em 0;
+          }
+          .markdown-body .math-inline {
+            display: inline-block;
+            margin: 0;
+          }
+          .markdown-body .math-block {
+            display: block;
+            margin: 1em 0;
+          }
+          .markdown-body ol {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+          }
+          .markdown-body li {
+            margin: 0.3em 0;
+          }
+          .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+          }
+        `;
+        zeroMd.appendChild(style);
+        bubbleElement.appendChild(zeroMd);
+      }
 
-    const markdownSource = document.createElement('script');
-    markdownSource.setAttribute('type', 'text/markdown');
-    markdownSource.textContent = processedText;
-    zeroMd.appendChild(markdownSource);
+      // Always create a new script element to trigger a re-render
+      zeroMd.querySelectorAll('script[type="text/markdown"]').forEach(el => el.remove());
+      const markdownSource = document.createElement('script');
+      markdownSource.setAttribute('type', 'text/markdown');
+      markdownSource.textContent = processedText;
+      zeroMd.appendChild(markdownSource);
+    };
 
-    const style = document.createElement('style');
-    style.textContent = `
-      .markdown-body {
-        padding: 0;
-        margin: 0;
-        color: inherit;
-        font-size: inherit;
-        line-height: inherit;
-        background: transparent;
-      }
-      .markdown-body .math {
-        overflow-x: auto;
-        margin: 1em 0;
-      }
-      .markdown-body .math-inline {
-        display: inline-block;
-        margin: 0;
-      }
-      .markdown-body .math-block {
-        display: block;
-        margin: 1em 0;
-      }
-      .markdown-body ol {
-        padding-left: 1.5em;
-        margin: 0.5em 0;
-      }
-      .markdown-body li {
-        margin: 0.3em 0;
-      }
-      .markdown-body ul {
-        list-style-type: disc;
-        padding-left: 1.5em;
-        margin: 0.5em 0;
-      }
-      .katex {
-        font-size: 1.1em;
-      }
-      .katex-display {
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 0.5em 0;
-        margin: 0.5em 0;
-      }
-      .katex-html {
-        white-space: normal;
-      }
-    `;
-    zeroMd.appendChild(style);
-
-    bubbleElement.appendChild(zeroMd);
-
-    // Optional: Add a fallback if zero-md fails to load
-    if (!customElements.get('zero-md')) {
-      const fallbackDiv = document.createElement('div');
-      fallbackDiv.textContent = text;
-      bubbleElement.appendChild(fallbackDiv);
+    if (!this.zeroMdLoaded) {
+      this.renderQueue.push(renderFunction);
+      return;
     }
 
-    // Force zero-md to re-render when math content is present
-    setTimeout(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (zeroMd as any).render();
-    }, 100);
+    // For streaming messages, debounce slightly to improve performance
+    // For history messages, render immediately
+    const isStreaming = bubbleElement.parentElement?.classList.contains('typing');
+    if (isStreaming) {
+      const newTimer = window.setTimeout(() => {
+        renderFunction();
+        this.messageUpdateDebounceTimers.delete(bubbleElement);
+      }, 30); // Short debounce for smooth streaming
+      this.messageUpdateDebounceTimers.set(bubbleElement, newTimer);
+    } else {
+      renderFunction();
+    }
   }
 
   protected refreshTextMessages() {
+    if (!this.zeroMdLoaded) {
+      this.renderQueue.push(() => this.refreshTextMessages());
+      return;
+    }
+
     this.textElementsToText.forEach((elementToText) => {
       this.renderText(elementToText[0].bubbleElement, elementToText[1]);
     });
