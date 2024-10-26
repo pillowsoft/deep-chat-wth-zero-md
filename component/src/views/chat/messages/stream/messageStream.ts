@@ -1,14 +1,14 @@
-import {ErrorMessages} from '../../../../utils/errorMessages/errorMessages';
-import {ElementUtils} from '../../../../utils/element/elementUtils';
-import {MessageContentI} from '../../../../types/messagesInternal';
-import {TextToSpeech} from '../textToSpeech/textToSpeech';
-import {MessageFile} from '../../../../types/messageFile';
-import {MessageElements, Messages} from '../messages';
-import {Response} from '../../../../types/response';
-import {HTMLMessages} from '../html/htmlMessages';
-import {MessageUtils} from '../messageUtils';
-import {MessagesBase} from '../messagesBase';
-import {HTMLUtils} from '../html/htmlUtils';
+import { ErrorMessages } from '../../../../utils/errorMessages/errorMessages';
+import { ElementUtils } from '../../../../utils/element/elementUtils';
+import { MessageContentI } from '../../../../types/messagesInternal';
+import { TextToSpeech } from '../textToSpeech/textToSpeech';
+import { MessageFile } from '../../../../types/messageFile';
+import { MessageElements, Messages } from '../messages';
+import { Response } from '../../../../types/response';
+import { HTMLMessages } from '../html/htmlMessages';
+import { MessageUtils } from '../messageUtils';
+import { MessagesBase } from '../messagesBase';
+import { HTMLUtils } from '../html/htmlUtils';
 
 export class MessageStream {
   static readonly MESSAGE_CLASS = 'streamed-message';
@@ -34,6 +34,7 @@ export class MessageStream {
     }
     const content = response?.text || response?.html || '';
     const isScrollbarAtBottomOfElement = ElementUtils.isScrollbarAtBottomOfElement(this._messages.elementRef);
+
     const streamType = response?.text !== undefined ? 'text' : 'html';
     if (!this._elements && this._streamedContent === '') {
       this.setInitialState(streamType, content, response?.role);
@@ -42,7 +43,7 @@ export class MessageStream {
     } else {
       this.updateBasedOnType(content, streamType, this._elements?.bubbleElement as HTMLElement, response?.overwrite);
     }
-    if (isScrollbarAtBottomOfElement) ElementUtils.scrollToBottom(this._messages.elementRef);
+    if (!isScrollbarAtBottomOfElement) ElementUtils.scrollToBottom(this._messages.elementRef);
   }
 
   private setInitialState(streamType: 'text' | 'html', content: string, role?: string) {
@@ -57,7 +58,7 @@ export class MessageStream {
     this._elements.bubbleElement.classList.add(MessageStream.MESSAGE_CLASS);
     this._streamedContent = content;
     this._activeMessageRole = role;
-    this._message = {role: this._activeMessageRole, [streamType]: this._streamedContent};
+    this._message = { role: this._activeMessageRole, [streamType]: this._streamedContent };
     this._messages.messages.push(this._message);
   }
 
@@ -86,7 +87,7 @@ export class MessageStream {
   }
 
   public finaliseStreamedMessage() {
-    const {textElementsToText} = this._messages;
+    const { textElementsToText } = this._messages;
     if (this._endStreamAfterOperation) return;
     if (this._fileAdded && !this._elements) return;
     if (!this._elements) throw Error(ErrorMessages.NO_VALID_STREAM_EVENTS_SENT);
@@ -124,12 +125,12 @@ export class MessageStream {
 
   // prettier-ignore
   public async endStreamAfterFileDownloaded(
-      messages: Messages, downloadCb: () => Promise<{files?: MessageFile[]; text?: string}>) {
+    messages: Messages, downloadCb: () => Promise<{ files?: MessageFile[]; text?: string }>) {
     this._endStreamAfterOperation = true;
-    const {text, files} = await downloadCb();
+    const { text, files } = await downloadCb();
     if (text) this.updateBasedOnType(text, 'text', this._elements?.bubbleElement as HTMLElement, true);
     this._endStreamAfterOperation = false;
     this.finaliseStreamedMessage();
-    if (files) messages.addNewMessage({files}); // adding later to trigger event later
+    if (files) messages.addNewMessage({ files }); // adding later to trigger event later
   }
 }
