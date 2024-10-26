@@ -238,8 +238,8 @@ export class MessagesBase {
       .replace(/\\\\/g, '\\');  // Remove double backslashes
 
     // Wrap equations in backticks to prevent further processing
-    processedText = processedText.replace(/\$\$(.*?)\$\$/g, (match, equation) => {
-      return '`' + equation + '`';
+    processedText = processedText.replace(/\$\$(.*?)\$\$/g, (_match, equation) => {
+      return `\`${equation}\``;
     });
 
     bubbleElement.innerHTML = '';
