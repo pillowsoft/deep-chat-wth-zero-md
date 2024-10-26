@@ -1,7 +1,7 @@
-import {ValidationHandler} from '../../../../types/validationHandler';
-import {KEYBOARD_KEY} from '../../../../utils/buttons/keyboardKeys';
-import {FileAttachments} from '../fileAttachments/fileAttachments';
-import {FocusUtils} from './focusUtils';
+import { ValidationHandler } from '../../../../types/validationHandler';
+import { KEYBOARD_KEY } from '../../../../utils/buttons/keyboardKeys';
+import { FileAttachments } from '../fileAttachments/fileAttachments';
+import { FocusUtils } from './focusUtils';
 
 export class TextInputEvents {
   // prettier-ignore
@@ -12,7 +12,7 @@ export class TextInputEvents {
 
   // prettier-ignore
   public static add(inputElement: HTMLElement, fileAts: FileAttachments, characterLimit?: number,
-      validationHandler?: ValidationHandler) {
+    validationHandler?: ValidationHandler) {
     if (characterLimit !== undefined) {
       inputElement.addEventListener('keydown', TextInputEvents.onKeyDown.bind(this, characterLimit));
     }
@@ -29,7 +29,7 @@ export class TextInputEvents {
     const inputElement = event.target as HTMLElement;
     const textContent = inputElement.textContent;
     if (textContent && textContent.length >= characterLimit
-        && !TextInputEvents.PERMITTED_KEYS.has(event.key) && !TextInputEvents.isKeyCombinationPermitted(event)) {
+      && !TextInputEvents.PERMITTED_KEYS.has(event.key) && !TextInputEvents.isKeyCombinationPermitted(event)) {
       event.preventDefault();
     }
   }
